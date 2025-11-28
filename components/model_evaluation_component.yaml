@@ -1,0 +1,114 @@
+# PIPELINE DEFINITION
+# Name: model-evaluation
+# Inputs:
+#    metrics_output_path: str [Default: 'metrics/metrics.json']
+#    model_path: str
+#    x_test_csv: str
+#    y_test_csv: str
+components:
+  comp-model-evaluation:
+    executorLabel: exec-model-evaluation
+    inputDefinitions:
+      parameters:
+        metrics_output_path:
+          defaultValue: metrics/metrics.json
+          description: Path where the JSON metrics file will be written.
+          isOptional: true
+          parameterType: STRING
+        model_path:
+          description: Path to the trained model artifact.
+          parameterType: STRING
+        x_test_csv:
+          description: Path to the test feature matrix.
+          parameterType: STRING
+        y_test_csv:
+          description: Path to the test labels.
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-model-evaluation:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - model_evaluation
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'pandas' 'numpy'\
+          \ 'scikit-learn' 'joblib' 'dvc'  &&  python3 -m pip install --quiet --no-warn-script-location\
+          \ 'kfp==2.15.1' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"\
+          3.9\"' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef model_evaluation(\n    model_path: str,\n    x_test_csv: str,\n\
+          \    y_test_csv: str,\n    metrics_output_path: str = \"metrics/metrics.json\"\
+          ,\n) -> None:\n    \"\"\"\n    Evaluate the trained model on the test set\
+          \ and save metrics to a file.\n\n    Metrics include:\n    - accuracy\n\
+          \    - F1-score (binary, positive class = 1)\n\n    Parameters\n    ----------\n\
+          \    model_path : str\n        Path to the trained model artifact.\n   \
+          \ x_test_csv : str\n        Path to the test feature matrix.\n    y_test_csv\
+          \ : str\n        Path to the test labels.\n    metrics_output_path : str\n\
+          \        Path where the JSON metrics file will be written.\n\n    Notes\n\
+          \    -----\n    The JSON metrics file is written to ``metrics_output_path``.\n\
+          \    \"\"\"\n    X_test = pd.read_csv(x_test_csv)\n    y_test = pd.read_csv(y_test_csv).iloc[:,\
+          \ 0]\n\n    model = joblib.load(model_path)\n    y_pred = model.predict(X_test)\n\
+          \n    acc = accuracy_score(y_test, y_pred)\n    f1 = f1_score(y_test, y_pred)\n\
+          \n    metrics = {\"accuracy\": acc, \"f1_score\": f1}\n\n    os.makedirs(os.path.dirname(metrics_output_path),\
+          \ exist_ok=True)\n    with open(metrics_output_path, \"w\", encoding=\"\
+          utf-8\") as f:\n        json.dump(metrics, f, indent=2)\n\n    # Also print\
+          \ metrics so they are visible in KFP logs.\n    print(json.dumps(metrics,\
+          \ indent=2))\n\n"
+        image: python:3.11-slim
+pipelineInfo:
+  name: model-evaluation
+root:
+  dag:
+    tasks:
+      model-evaluation:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-model-evaluation
+        inputs:
+          parameters:
+            metrics_output_path:
+              componentInputParameter: metrics_output_path
+            model_path:
+              componentInputParameter: model_path
+            x_test_csv:
+              componentInputParameter: x_test_csv
+            y_test_csv:
+              componentInputParameter: y_test_csv
+        taskInfo:
+          name: model-evaluation
+  inputDefinitions:
+    parameters:
+      metrics_output_path:
+        defaultValue: metrics/metrics.json
+        description: Path where the JSON metrics file will be written.
+        isOptional: true
+        parameterType: STRING
+      model_path:
+        description: Path to the trained model artifact.
+        parameterType: STRING
+      x_test_csv:
+        description: Path to the test feature matrix.
+        parameterType: STRING
+      y_test_csv:
+        description: Path to the test labels.
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.15.1

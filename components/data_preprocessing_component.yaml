@@ -1,0 +1,167 @@
+# PIPELINE DEFINITION
+# Name: data-preprocessing
+# Inputs:
+#    random_state: int [Default: 42.0]
+#    raw_data_csv: str
+#    test_size: float [Default: 0.2]
+#    x_test_path: str [Default: 'data/processed_X_test.csv']
+#    x_train_path: str [Default: 'data/processed_X_train.csv']
+#    y_test_path: str [Default: 'data/processed_y_test.csv']
+#    y_train_path: str [Default: 'data/processed_y_train.csv']
+components:
+  comp-data-preprocessing:
+    executorLabel: exec-data-preprocessing
+    inputDefinitions:
+      parameters:
+        random_state:
+          defaultValue: 42.0
+          description: Random seed for reproducible splits.
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        raw_data_csv:
+          description: Path to the raw CSV file containing the full Boston housing
+            dataset.
+          parameterType: STRING
+        test_size:
+          defaultValue: 0.2
+          description: Fraction of the data to reserve for testing.
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+        x_test_path:
+          defaultValue: data/processed_X_test.csv
+          isOptional: true
+          parameterType: STRING
+        x_train_path:
+          defaultValue: data/processed_X_train.csv
+          isOptional: true
+          parameterType: STRING
+        y_test_path:
+          defaultValue: data/processed_y_test.csv
+          isOptional: true
+          parameterType: STRING
+        y_train_path:
+          defaultValue: data/processed_y_train.csv
+          isOptional: true
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-data-preprocessing:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - data_preprocessing
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'pandas' 'numpy'\
+          \ 'scikit-learn' 'joblib' 'dvc'  &&  python3 -m pip install --quiet --no-warn-script-location\
+          \ 'kfp==2.15.1' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"\
+          3.9\"' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef data_preprocessing(\n    raw_data_csv: str,\n    x_train_path:\
+          \ str = \"data/processed_X_train.csv\",\n    x_test_path: str = \"data/processed_X_test.csv\"\
+          ,\n    y_train_path: str = \"data/processed_y_train.csv\",\n    y_test_path:\
+          \ str = \"data/processed_y_test.csv\",\n    test_size: float = 0.2,\n  \
+          \  random_state: int = 42,\n) -> None:\n    \"\"\"\n    Load the raw dataset,\
+          \ clean, scale, and split it into train/test sets.\n\n    The Boston housing\
+          \ dataset is a regression dataset. For the purposes of\n    this assignment\
+          \ (which asks for a classifier and metrics like accuracy\n    and F1-score),\
+          \ we convert the target into a binary label:\n\n    - target = 1 if MEDV\
+          \ >= median(MEDV)\n    - target = 0 otherwise\n\n    Parameters\n    ----------\n\
+          \    raw_data_csv : str\n        Path to the raw CSV file containing the\
+          \ full Boston housing dataset.\n    x_train_path, x_test_path, y_train_path,\
+          \ y_test_path : str\n        Paths where the processed train/test splits\
+          \ will be stored as CSV.\n    test_size : float\n        Fraction of the\
+          \ data to reserve for testing.\n    random_state : int\n        Random seed\
+          \ for reproducible splits.\n\n    Notes\n    -----\n    The processed splits\
+          \ are written to the four output CSV paths.\n    \"\"\"\n    df = pd.read_csv(raw_data_csv)\n\
+          \n    if \"medv\" not in df.columns:\n        raise ValueError(\"Expected\
+          \ target column 'medv' in the dataset.\")\n\n    # Create binary classification\
+          \ target from regression target.\n    median_medv = df[\"medv\"].median()\n\
+          \    df[\"target\"] = (df[\"medv\"] >= median_medv).astype(int)\n\n    feature_cols\
+          \ = [c for c in df.columns if c not in (\"medv\", \"target\")]\n    X =\
+          \ df[feature_cols]\n    y = df[\"target\"]\n\n    X_train, X_test, y_train,\
+          \ y_test = train_test_split(\n        X, y, test_size=test_size, random_state=random_state,\
+          \ stratify=y\n    )\n\n    # Scale features using StandardScaler.\n    scaler\
+          \ = StandardScaler()\n    X_train_scaled = scaler.fit_transform(X_train)\n\
+          \    X_test_scaled = scaler.transform(X_test)\n\n    # Save processed splits\
+          \ to CSV.\n    pd.DataFrame(X_train_scaled, columns=feature_cols).to_csv(x_train_path,\
+          \ index=False)\n    pd.DataFrame(X_test_scaled, columns=feature_cols).to_csv(x_test_path,\
+          \ index=False)\n    y_train.to_csv(y_train_path, index=False, header=True)\n\
+          \    y_test.to_csv(y_test_path, index=False, header=True)\n\n"
+        image: python:3.11-slim
+pipelineInfo:
+  name: data-preprocessing
+root:
+  dag:
+    tasks:
+      data-preprocessing:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-data-preprocessing
+        inputs:
+          parameters:
+            random_state:
+              componentInputParameter: random_state
+            raw_data_csv:
+              componentInputParameter: raw_data_csv
+            test_size:
+              componentInputParameter: test_size
+            x_test_path:
+              componentInputParameter: x_test_path
+            x_train_path:
+              componentInputParameter: x_train_path
+            y_test_path:
+              componentInputParameter: y_test_path
+            y_train_path:
+              componentInputParameter: y_train_path
+        taskInfo:
+          name: data-preprocessing
+  inputDefinitions:
+    parameters:
+      random_state:
+        defaultValue: 42.0
+        description: Random seed for reproducible splits.
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      raw_data_csv:
+        description: Path to the raw CSV file containing the full Boston housing dataset.
+        parameterType: STRING
+      test_size:
+        defaultValue: 0.2
+        description: Fraction of the data to reserve for testing.
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      x_test_path:
+        defaultValue: data/processed_X_test.csv
+        isOptional: true
+        parameterType: STRING
+      x_train_path:
+        defaultValue: data/processed_X_train.csv
+        isOptional: true
+        parameterType: STRING
+      y_test_path:
+        defaultValue: data/processed_y_test.csv
+        isOptional: true
+        parameterType: STRING
+      y_train_path:
+        defaultValue: data/processed_y_train.csv
+        isOptional: true
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.15.1

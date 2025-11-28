@@ -1,0 +1,141 @@
+# PIPELINE DEFINITION
+# Name: model-training
+# Inputs:
+#    max_depth: int
+#    model_output_path: str [Default: 'model/random_forest_model.joblib']
+#    n_estimators: int [Default: 100.0]
+#    random_state: int [Default: 42.0]
+#    x_train_csv: str
+#    y_train_csv: str
+components:
+  comp-model-training:
+    executorLabel: exec-model-training
+    inputDefinitions:
+      parameters:
+        max_depth:
+          description: Maximum depth of each tree.
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        model_output_path:
+          defaultValue: model/random_forest_model.joblib
+          description: Path where the trained model artifact will be stored.
+          isOptional: true
+          parameterType: STRING
+        n_estimators:
+          defaultValue: 100.0
+          description: Number of trees in the forest.
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        random_state:
+          defaultValue: 42.0
+          description: Random seed for reproducibility.
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        x_train_csv:
+          description: Path to the preprocessed feature matrix for training.
+          parameterType: STRING
+        y_train_csv:
+          description: Path to the training labels.
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-model-training:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - model_training
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'pandas' 'numpy'\
+          \ 'scikit-learn' 'joblib' 'dvc'  &&  python3 -m pip install --quiet --no-warn-script-location\
+          \ 'kfp==2.15.1' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"\
+          3.9\"' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef model_training(\n    x_train_csv: str,\n    y_train_csv: str,\n\
+          \    model_output_path: str = \"model/random_forest_model.joblib\",\n  \
+          \  n_estimators: int = 100,\n    max_depth: Optional[int] = None,\n    random_state:\
+          \ int = 42,\n) -> None:\n    \"\"\"\n    Train a Random Forest classifier\
+          \ on the preprocessed training data.\n\n    Parameters\n    ----------\n\
+          \    x_train_csv : str\n        Path to the preprocessed feature matrix\
+          \ for training.\n    y_train_csv : str\n        Path to the training labels.\n\
+          \    model_output_path : str\n        Path where the trained model artifact\
+          \ will be stored.\n    n_estimators : int\n        Number of trees in the\
+          \ forest.\n    max_depth : Optional[int]\n        Maximum depth of each\
+          \ tree.\n    random_state : int\n        Random seed for reproducibility.\n\
+          \n    Notes\n    -----\n    The trained model is saved to ``model_output_path``.\n\
+          \    \"\"\"\n    X_train = pd.read_csv(x_train_csv)\n    y_train = pd.read_csv(y_train_csv).iloc[:,\
+          \ 0]\n\n    clf = RandomForestClassifier(\n        n_estimators=n_estimators,\n\
+          \        max_depth=max_depth,\n        random_state=random_state,\n    \
+          \    n_jobs=-1,\n    )\n    clf.fit(X_train, y_train)\n\n    os.makedirs(os.path.dirname(model_output_path),\
+          \ exist_ok=True)\n    joblib.dump(clf, model_output_path)\n\n"
+        image: python:3.11-slim
+pipelineInfo:
+  name: model-training
+root:
+  dag:
+    tasks:
+      model-training:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-model-training
+        inputs:
+          parameters:
+            max_depth:
+              componentInputParameter: max_depth
+            model_output_path:
+              componentInputParameter: model_output_path
+            n_estimators:
+              componentInputParameter: n_estimators
+            random_state:
+              componentInputParameter: random_state
+            x_train_csv:
+              componentInputParameter: x_train_csv
+            y_train_csv:
+              componentInputParameter: y_train_csv
+        taskInfo:
+          name: model-training
+  inputDefinitions:
+    parameters:
+      max_depth:
+        description: Maximum depth of each tree.
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      model_output_path:
+        defaultValue: model/random_forest_model.joblib
+        description: Path where the trained model artifact will be stored.
+        isOptional: true
+        parameterType: STRING
+      n_estimators:
+        defaultValue: 100.0
+        description: Number of trees in the forest.
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      random_state:
+        defaultValue: 42.0
+        description: Random seed for reproducibility.
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      x_train_csv:
+        description: Path to the preprocessed feature matrix for training.
+        parameterType: STRING
+      y_train_csv:
+        description: Path to the training labels.
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.15.1

@@ -1,0 +1,115 @@
+# PIPELINE DEFINITION
+# Name: data-extraction
+# Inputs:
+#    dvc_data_path: str
+#    output_csv_path: str [Default: 'data/raw_data.csv']
+#    repo_url: str
+components:
+  comp-data-extraction:
+    executorLabel: exec-data-extraction
+    inputDefinitions:
+      parameters:
+        dvc_data_path:
+          description: 'Path (within the repo) to the data file or directory to fetch,
+
+            for example: "data/raw_data.csv".'
+          parameterType: STRING
+        output_csv_path:
+          defaultValue: data/raw_data.csv
+          description: 'Local path inside the component container where the CSV file
+
+            should be stored.'
+          isOptional: true
+          parameterType: STRING
+        repo_url:
+          description: 'URL of the Git repository that contains the DVC-tracked data
+
+            (e.g., your GitHub repository URL).'
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-data-extraction:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - data_extraction
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'pandas' 'numpy'\
+          \ 'scikit-learn' 'joblib' 'dvc'  &&  python3 -m pip install --quiet --no-warn-script-location\
+          \ 'kfp==2.15.1' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"\
+          3.9\"' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef data_extraction(\n    repo_url: str,\n    dvc_data_path: str,\n\
+          \    output_csv_path: str = \"data/raw_data.csv\",\n) -> None:\n    \"\"\
+          \"\n    Fetch the versioned dataset from a DVC-enabled repository.\n\n \
+          \   Parameters\n    ----------\n    repo_url : str\n        URL of the Git\
+          \ repository that contains the DVC-tracked data\n        (e.g., your GitHub\
+          \ repository URL).\n    dvc_data_path : str\n        Path (within the repo)\
+          \ to the data file or directory to fetch,\n        for example: \\\"data/raw_data.csv\\\
+          \".\n    output_csv_path : str, optional\n        Local path inside the\
+          \ component container where the CSV file\n        should be stored.\n\n\
+          \    Notes\n    -----\n    The dataset is written to ``output_csv_path``\
+          \ inside the component container.\n    \"\"\"\n    # Use `dvc get` to download\
+          \ the data file from the remote repo.\n    # Example:\n    #   dvc get https://github.com/user/mlops-kubeflow-assignment\
+          \ data/raw_data.csv -o /tmp/raw_data.csv\n    cmd = [\n        \"dvc\",\n\
+          \        \"get\",\n        repo_url,\n        dvc_data_path,\n        \"\
+          -o\",\n        output_csv_path,\n    ]\n    subprocess.run(cmd, check=True)\n\
+          \n"
+        image: python:3.11-slim
+pipelineInfo:
+  name: data-extraction
+root:
+  dag:
+    tasks:
+      data-extraction:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-data-extraction
+        inputs:
+          parameters:
+            dvc_data_path:
+              componentInputParameter: dvc_data_path
+            output_csv_path:
+              componentInputParameter: output_csv_path
+            repo_url:
+              componentInputParameter: repo_url
+        taskInfo:
+          name: data-extraction
+  inputDefinitions:
+    parameters:
+      dvc_data_path:
+        description: 'Path (within the repo) to the data file or directory to fetch,
+
+          for example: "data/raw_data.csv".'
+        parameterType: STRING
+      output_csv_path:
+        defaultValue: data/raw_data.csv
+        description: 'Local path inside the component container where the CSV file
+
+          should be stored.'
+        isOptional: true
+        parameterType: STRING
+      repo_url:
+        description: 'URL of the Git repository that contains the DVC-tracked data
+
+          (e.g., your GitHub repository URL).'
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.15.1
