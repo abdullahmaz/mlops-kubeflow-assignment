@@ -1,0 +1,12 @@
+# Core ML / data libraries
+pandas
+numpy
+scikit-learn
+
+# Kubeflow Pipelines SDK
+kfp
+
+# Data Version Control
+dvc
+
+

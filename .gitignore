@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+
+# DVC local remote directory (created in this project)
+dvc_remote/
+
+# DVC cache is ignored via .dvc/.gitignore created by `dvc init`
+
+# General
+.DS_Store
+
+
