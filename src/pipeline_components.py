@@ -230,9 +230,12 @@ def model_training(
     X_train = pd.read_csv(x_train_csv)
     y_train = pd.read_csv(y_train_csv).iloc[:, 0]
 
+    # Interpret negative max_depth (e.g. -1 from pipeline default) as "no limit".
+    effective_max_depth = None if max_depth is not None and max_depth < 1 else max_depth
+
     clf = RandomForestClassifier(
         n_estimators=n_estimators,
-        max_depth=max_depth,
+        max_depth=effective_max_depth,
         random_state=random_state,
         n_jobs=-1,
     )
