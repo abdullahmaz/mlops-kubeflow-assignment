@@ -34,7 +34,7 @@ def data_extraction(
     output_csv_path: str = "data/raw_data.csv",
 ) -> None:
     """
-    Fetch the versioned dataset from a DVC-enabled repository.
+    Fetch the versioned dataset for the pipeline.
 
     Parameters
     ----------
@@ -42,7 +42,7 @@ def data_extraction(
         URL of the Git repository that contains the DVC-tracked data
         (e.g., your GitHub repository URL).
     dvc_data_path : str
-        Path (within the repo) to the data file or directory to fetch,
+        Relative path to the data file within the repository,
         for example: \"data/raw_data.csv\".
     output_csv_path : str, optional
         Local path inside the component container where the CSV file
@@ -50,21 +50,26 @@ def data_extraction(
 
     Notes
     -----
-    The dataset is written to ``output_csv_path`` inside the component container.
+    In this pipeline environment we avoid configuring a shared DVC remote.
+    Instead, we download the dataset directly from GitHub using an HTTP
+    \"raw\" URL derived from ``repo_url`` and ``dvc_data_path`` and write
+    it to ``output_csv_path``.
     """
-    import subprocess
-    # Use `dvc get` to download the data file from the remote repo.
-    # Example:
-    #   dvc get https://github.com/user/mlops-kubeflow-assignment data/raw_data.csv -o /tmp/raw_data.csv
-    cmd = [
-        "dvc",
-        "get",
-        repo_url,
-        dvc_data_path,
-        "-o",
-        output_csv_path,
-    ]
-    subprocess.run(cmd, check=True)
+    import os
+    from urllib.request import urlretrieve
+
+    base = repo_url.strip()
+    if base.endswith(".git"):
+        base = base[:-4]
+    base = base.rstrip("/")
+
+    if "github.com/" in base:
+        base = base.replace("https://github.com/", "https://raw.githubusercontent.com/")
+
+    raw_url = f"{base}/main/{dvc_data_path.lstrip('/')}"
+
+    os.makedirs(os.path.dirname(output_csv_path), exist_ok=True)
+    urlretrieve(raw_url, output_csv_path)
 
 
 def data_preprocessing(
