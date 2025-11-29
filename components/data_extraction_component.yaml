@@ -65,8 +65,9 @@ deploymentSpec:
           \".\n    output_csv_path : str, optional\n        Local path inside the\
           \ component container where the CSV file\n        should be stored.\n\n\
           \    Notes\n    -----\n    The dataset is written to ``output_csv_path``\
-          \ inside the component container.\n    \"\"\"\n    # Use `dvc get` to download\
-          \ the data file from the remote repo.\n    # Example:\n    #   dvc get https://github.com/user/mlops-kubeflow-assignment\
+          \ inside the component container.\n    \"\"\"\n    import subprocess\n \
+          \   # Use `dvc get` to download the data file from the remote repo.\n  \
+          \  # Example:\n    #   dvc get https://github.com/user/mlops-kubeflow-assignment\
           \ data/raw_data.csv -o /tmp/raw_data.csv\n    cmd = [\n        \"dvc\",\n\
           \        \"get\",\n        repo_url,\n        dvc_data_path,\n        \"\
           -o\",\n        output_csv_path,\n    ]\n    subprocess.run(cmd, check=True)\n\

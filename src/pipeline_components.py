@@ -52,6 +52,7 @@ def data_extraction(
     -----
     The dataset is written to ``output_csv_path`` inside the component container.
     """
+    import subprocess
     # Use `dvc get` to download the data file from the remote repo.
     # Example:
     #   dvc get https://github.com/user/mlops-kubeflow-assignment data/raw_data.csv -o /tmp/raw_data.csv
