@@ -106,6 +106,22 @@ def data_preprocessing(
     -----
     The processed splits are written to the four output CSV paths.
     """
+    import os
+    from urllib.request import urlretrieve
+    import pandas as pd
+
+    # If the raw data file is not present (e.g., in a fresh container),
+    # download it directly from the GitHub repository used for this
+    # assignment so the component can proceed independently of previous
+    # steps persisting artifacts.
+    if not os.path.exists(raw_data_csv):
+        base_url = (
+            "https://raw.githubusercontent.com/"
+            "abdullahmaz/mlops-kubeflow-assignment/main/data/raw_data.csv"
+        )
+        os.makedirs(os.path.dirname(raw_data_csv), exist_ok=True)
+        urlretrieve(base_url, raw_data_csv)
+
     df = pd.read_csv(raw_data_csv)
 
     if "medv" not in df.columns:
@@ -165,6 +181,11 @@ def model_training(
     -----
     The trained model is saved to ``model_output_path``.
     """
+    import os
+    import pandas as pd
+    import joblib
+    from sklearn.ensemble import RandomForestClassifier
+
     X_train = pd.read_csv(x_train_csv)
     y_train = pd.read_csv(y_train_csv).iloc[:, 0]
 
@@ -208,6 +229,12 @@ def model_evaluation(
     -----
     The JSON metrics file is written to ``metrics_output_path``.
     """
+    import os
+    import json
+    import pandas as pd
+    import joblib
+    from sklearn.metrics import accuracy_score, f1_score
+
     X_test = pd.read_csv(x_test_csv)
     y_test = pd.read_csv(y_test_csv).iloc[:, 0]
 

@@ -78,7 +78,9 @@ deploymentSpec:
           \ forest.\n    max_depth : Optional[int]\n        Maximum depth of each\
           \ tree.\n    random_state : int\n        Random seed for reproducibility.\n\
           \n    Notes\n    -----\n    The trained model is saved to ``model_output_path``.\n\
-          \    \"\"\"\n    X_train = pd.read_csv(x_train_csv)\n    y_train = pd.read_csv(y_train_csv).iloc[:,\
+          \    \"\"\"\n    import os\n    import pandas as pd\n    import joblib\n\
+          \    from sklearn.ensemble import RandomForestClassifier\n\n    X_train\
+          \ = pd.read_csv(x_train_csv)\n    y_train = pd.read_csv(y_train_csv).iloc[:,\
           \ 0]\n\n    clf = RandomForestClassifier(\n        n_estimators=n_estimators,\n\
           \        max_depth=max_depth,\n        random_state=random_state,\n    \
           \    n_jobs=-1,\n    )\n    clf.fit(X_train, y_train)\n\n    os.makedirs(os.path.dirname(model_output_path),\

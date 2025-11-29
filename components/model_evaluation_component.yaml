@@ -63,7 +63,9 @@ deploymentSpec:
           \ : str\n        Path to the test labels.\n    metrics_output_path : str\n\
           \        Path where the JSON metrics file will be written.\n\n    Notes\n\
           \    -----\n    The JSON metrics file is written to ``metrics_output_path``.\n\
-          \    \"\"\"\n    X_test = pd.read_csv(x_test_csv)\n    y_test = pd.read_csv(y_test_csv).iloc[:,\
+          \    \"\"\"\n    import os\n    import json\n    import pandas as pd\n \
+          \   import joblib\n    from sklearn.metrics import accuracy_score, f1_score\n\
+          \n    X_test = pd.read_csv(x_test_csv)\n    y_test = pd.read_csv(y_test_csv).iloc[:,\
           \ 0]\n\n    model = joblib.load(model_path)\n    y_pred = model.predict(X_test)\n\
           \n    acc = accuracy_score(y_test, y_pred)\n    f1 = f1_score(y_test, y_pred)\n\
           \n    metrics = {\"accuracy\": acc, \"f1_score\": f1}\n\n    os.makedirs(os.path.dirname(metrics_output_path),\
