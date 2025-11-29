@@ -109,6 +109,8 @@ def data_preprocessing(
     import os
     from urllib.request import urlretrieve
     import pandas as pd
+    from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import StandardScaler
 
     # If the raw data file is not present (e.g., in a fresh container),
     # download it directly from the GitHub repository used for this
@@ -182,9 +184,48 @@ def model_training(
     The trained model is saved to ``model_output_path``.
     """
     import os
+    from urllib.request import urlretrieve
     import pandas as pd
     import joblib
     from sklearn.ensemble import RandomForestClassifier
+    from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import StandardScaler
+
+    # If training data CSVs are not present (e.g. due to separate pods),
+    # reconstruct them from the raw dataset hosted on GitHub.
+    if not (os.path.exists(x_train_csv) and os.path.exists(y_train_csv)):
+        raw_path = "data/raw_data.csv"
+        if not os.path.exists(raw_path):
+            base_url = (
+                "https://raw.githubusercontent.com/"
+                "abdullahmaz/mlops-kubeflow-assignment/main/data/raw_data.csv"
+            )
+            os.makedirs(os.path.dirname(raw_path), exist_ok=True)
+            urlretrieve(base_url, raw_path)
+
+        df = pd.read_csv(raw_path)
+        if "medv" not in df.columns:
+            raise ValueError("Expected target column 'medv' in the dataset.")
+
+        median_medv = df["medv"].median()
+        df["target"] = (df["medv"] >= median_medv).astype(int)
+
+        feature_cols = [c for c in df.columns if c not in ("medv", "target")]
+        X = df[feature_cols]
+        y = df["target"]
+
+        X_train, _, y_train_series, _ = train_test_split(
+            X, y, test_size=0.2, random_state=random_state, stratify=y
+        )
+
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+
+        os.makedirs(os.path.dirname(x_train_csv), exist_ok=True)
+        pd.DataFrame(X_train_scaled, columns=feature_cols).to_csv(
+            x_train_csv, index=False
+        )
+        y_train_series.to_csv(y_train_csv, index=False, header=True)
 
     X_train = pd.read_csv(x_train_csv)
     y_train = pd.read_csv(y_train_csv).iloc[:, 0]
@@ -231,9 +272,63 @@ def model_evaluation(
     """
     import os
     import json
+    from urllib.request import urlretrieve
     import pandas as pd
     import joblib
     from sklearn.metrics import accuracy_score, f1_score
+    from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.ensemble import RandomForestClassifier
+
+    # If model or test CSVs are missing (separate pods), rebuild them from
+    # the raw dataset hosted on GitHub.
+    if not (
+        os.path.exists(model_path)
+        and os.path.exists(x_test_csv)
+        and os.path.exists(y_test_csv)
+    ):
+        raw_path = "data/raw_data.csv"
+        if not os.path.exists(raw_path):
+            base_url = (
+                "https://raw.githubusercontent.com/"
+                "abdullahmaz/mlops-kubeflow-assignment/main/data/raw_data.csv"
+            )
+            os.makedirs(os.path.dirname(raw_path), exist_ok=True)
+            urlretrieve(base_url, raw_path)
+
+        df = pd.read_csv(raw_path)
+        if "medv" not in df.columns:
+            raise ValueError("Expected target column 'medv' in the dataset.")
+
+        median_medv = df["medv"].median()
+        df["target"] = (df["medv"] >= median_medv).astype(int)
+
+        feature_cols = [c for c in df.columns if c not in ("medv", "target")]
+        X = df[feature_cols]
+        y = df["target"]
+
+        X_train, X_test, y_train, y_test_series = train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=y
+        )
+
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+
+        os.makedirs(os.path.dirname(x_test_csv), exist_ok=True)
+        pd.DataFrame(X_test_scaled, columns=feature_cols).to_csv(
+            x_test_csv, index=False
+        )
+        y_test_series.to_csv(y_test_csv, index=False, header=True)
+
+        # Train a model for evaluation if it doesn't exist.
+        clf = RandomForestClassifier(
+            n_estimators=100, max_depth=None, random_state=42, n_jobs=-1
+        )
+        clf.fit(X_train_scaled, y_train)
+
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        joblib.dump(clf, model_path)
 
     X_test = pd.read_csv(x_test_csv)
     y_test = pd.read_csv(y_test_csv).iloc[:, 0]
